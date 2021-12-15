@@ -1,0 +1,20 @@
+{
+  "name": "update-tickets",
+  "version": "1.0.0",
+  "main": "update.js",
+  "description": "Sample OpenWhisk Function",
+  "keywords": [
+    "serverless",
+    "openwhisk"
+  ],
+  "scripts": {
+    "build": "webpack --config webpack.config.js"
+  },
+  "dependencies": {
+    "@ibm-cloud/cloudant": "0.0.11"
+  },
+  "devDependencies": {
+    "webpack": "^5.10.1",
+    "webpack-cli": "^4.2.0"
+  }
+}

@@ -1,2 +1,3 @@
 # serverless-api-tekton-schematics
-Repository to store the code for the "Deploying a serverless API with Tekton and IBM Cloud Schematics" tutorial
+
+This repository contains the code for the [Deploy a serverless API with Tekton and Terraform tutorial](https://developer.ibm.com/tutorials/deploy-a-serverless-api-with-tekton-and-terraform/) on IBM Developer.
