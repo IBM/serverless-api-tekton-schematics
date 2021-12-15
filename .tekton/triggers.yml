@@ -1,0 +1,78 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: tt-function-deployment
+spec:
+  params:
+    - name: git-repository
+      description: The git repo
+    - name: git-branch
+      description: the branch for the git repo
+    - name: region
+    - name: package-name
+      description: Package to deploy the function
+    - name: namespace
+      description: namespace of the actions
+    - name: organization
+      description: IBM Cloud organization
+    - name: space
+      description: IBM Cloud space
+  resourcetemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: sfs-$(uid)-pvc
+      spec:
+        resources:
+          requests:
+            storage: 5Gi
+        volumeMode: Filesystem
+        accessModes:
+          - ReadWriteOnce
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        name: deploy-function-$(uid)
+      spec:
+        pipelineRef:
+          name: pipeline-build-deploy
+        params:
+          - name: git-repository
+            value: $(params.git-repository)
+          - name: git-branch
+            value: $(params.git-branch)
+          - name: region
+            value: $(params.region)
+          - name: package-name
+            value: $(params.package-name)
+          - name: namespace
+            value: $(params.namespace)
+          - name: space
+            value: $(params.space)
+          - name: organization
+            value: $(params.organization)
+        workspaces:
+          - name: pipeline-ws
+            persistentVolumeClaim:
+              claimName: sfs-$(uid)-pvc
+---
+apiVersion: tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: tb-function-deployment
+spec:
+  params:
+    - name: branch
+      value: "master"
+---
+apiVersion: tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: manual-listener-builddeploy
+spec:
+  triggers:
+    - binding:
+        name: tb-function-deployment
+      template:
+        name: tt-function-deployment

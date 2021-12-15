@@ -1,0 +1,223 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: pipeline-build-deploy
+spec:
+  params:
+    - name: git-repository
+      description: the git repo
+    - name: git-branch
+      description: the branch for the git repo
+    - name: package-name
+      description: Package to deploy the function
+    - name: namespace
+      description: Namespace of the actions
+    - name: region
+      description: region to login
+    - name: space
+    - name: organization
+  workspaces:
+  - name: pipeline-ws
+  tasks:
+  - name: git-repo-clone
+    workspaces:
+    - name: task-workspace
+      workspace: pipeline-ws
+    taskRef:
+      name: repository-clone
+    params:
+    - name: app-dirs
+      value: "create-tickets"
+    - name: git-repository
+      value: $(params.git-repository)
+    - name: git-branch
+      value: $(params.git-branch)
+#################################################################################
+################################CREATE FUNCTION##################################
+#################################################################################
+  - name: build-create
+    taskRef:
+      name: build-function
+    runAfter:
+      - git-repo-clone
+    params:
+    - name: app-base
+      value: "functions"
+    - name: app-folder
+      value: "create-tickets"
+    workspaces:
+    - name: source
+      workspace: pipeline-ws
+  - name: deploy-create
+    taskRef:
+      name: deploy-app
+    when: 
+      - input: $(tasks.build-create.results.is_changed)
+        operator: in
+        values: ["true"]
+    workspaces:
+    - name: task-workspace
+      workspace: pipeline-ws
+    params:
+      - name: package-name
+        value: $(params.package-name)
+      - name: function-name
+        value: "create-tickets"
+      - name: namespace
+        value: $(params.namespace)
+      - name: endpoint
+        value: "new"
+      - name: method
+        value: "post"
+      - name: target-region
+        value: $(params.region)
+      - name: space
+        value: $(params.space)
+      - name: organization
+        value: $(params.organization)
+      - name: app-base
+        value: "functions"
+      - name: app-folder
+        value: "create-tickets"
+#################################################################################
+################################LIST FUNCTION####################################
+#################################################################################
+  - name: build-list
+    runAfter:
+      - build-create
+    taskRef:
+      name: build-function
+    params:
+    - name: app-base
+      value: "functions"
+    - name: app-folder
+      value: "list-tickets"
+    workspaces:
+    - name: source
+      workspace: pipeline-ws
+  - name: deploy-list
+    taskRef:
+      name: deploy-app
+    when: 
+      - input: $(tasks.build-list.results.is_changed)
+        operator: in
+        values: ["true"]
+    workspaces:
+    - name: task-workspace
+      workspace: pipeline-ws
+    params:
+      - name: package-name
+        value: $(params.package-name)
+      - name: function-name
+        value: "list-tickets"
+      - name: namespace
+        value: $(params.namespace)
+      - name: endpoint
+        value: "show"
+      - name: method
+        value: "post"
+      - name: target-region
+        value: $(params.region)
+      - name: space
+        value: $(params.space)
+      - name: organization
+        value: $(params.organization)
+      - name: app-base
+        value: "functions"
+      - name: app-folder
+        value: "list-tickets"
+#################################################################################
+################################UPDATE FUNCTION####################################
+#################################################################################
+  - name: build-update
+    runAfter:
+      - build-list
+    taskRef:
+      name: build-function
+    params:
+    - name: app-base
+      value: "functions"
+    - name: app-folder
+      value: "update-tickets"
+    workspaces:
+    - name: source
+      workspace: pipeline-ws
+  - name: deploy-update
+    taskRef:
+      name: deploy-app
+    when: 
+      - input: $(tasks.build-update.results.is_changed)
+        operator: in
+        values: ["true"]
+    workspaces:
+    - name: task-workspace
+      workspace: pipeline-ws
+    params:
+      - name: package-name
+        value: $(params.package-name)
+      - name: function-name
+        value: "update-tickets"
+      - name: namespace
+        value: $(params.namespace)
+      - name: endpoint
+        value: "update"
+      - name: method
+        value: "put"
+      - name: target-region
+        value: $(params.region)
+      - name: space
+        value: $(params.space)
+      - name: organization
+        value: $(params.organization)
+      - name: app-base
+        value: "functions"
+      - name: app-folder
+        value: "update-tickets"
+###################################################################################
+################################DELETE FUNCTION####################################
+###################################################################################
+  - name: build-delete
+    runAfter:
+      - build-update
+    taskRef:
+      name: build-function
+    params:
+    - name: app-base
+      value: "functions"
+    - name: app-folder
+      value: "delete-tickets"
+    workspaces:
+    - name: source
+      workspace: pipeline-ws
+  - name: deploy-delete
+    taskRef:
+      name: deploy-app
+    when: 
+      - input: $(tasks.build-delete.results.is_changed)
+        operator: in
+        values: ["true"]
+    workspaces:
+    - name: task-workspace
+      workspace: pipeline-ws
+    params:
+      - name: package-name
+        value: $(params.package-name)
+      - name: function-name
+        value: "delete-tickets"
+      - name: namespace
+        value: $(params.namespace)
+      - name: endpoint
+        value: "delete"
+      - name: method
+        value: "delete"
+      - name: target-region
+        value: $(params.region)
+      - name: space
+        value: $(params.space)
+      - name: organization
+        value: $(params.organization)
+      - name: app-base
+        value: "functions"
+      - name: app-folder
+        value: "delete-tickets"

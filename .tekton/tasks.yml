@@ -1,0 +1,146 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: repository-clone
+spec:
+  workspaces:
+    - name: task-workspace
+      mountPath: /working
+  params:
+    - name: app-dirs
+    - name: git-repository
+    - name: git-branch
+  steps:
+    - name: execute-script
+      image: ibmcom/pipeline-base-image:2.9
+      envFrom:
+        - configMapRef:
+            name: environment-properties
+        - secretRef:
+            name: secure-properties
+      env:
+        - name: appdirs
+          value: $(params.app-dirs)
+        - name: GIT_BRANCH
+          value: $(params.git-branch)
+        - name: GIT_REPO
+          value: $(params.git-repository)
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          cd /working
+          echo "Cloning git repository"
+          # get the right repo and branch
+          if [ -z $GIT_BRANCH ]; then
+            git clone -q $GIT_REPO .
+          else
+            git clone -q -b $GIT_BRANCH $GIT_REPO .
+          fi
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-function
+spec:
+  results:
+    - name: is_changed
+      description: app has changed
+  workspaces:
+    - name: source
+      mountPath: /working
+  params:
+    - name: app-base
+    - name: app-folder
+  steps:
+    - name: execute-script
+      image: ibmcom/pipeline-base-image:2.9
+      envFrom:
+        - configMapRef:
+            name: environment-properties
+        - secretRef:
+            name: secure-properties
+      env:
+      - name: APP_BASE
+        value: $(params.app-base)
+      - name: APP_FOLDER
+        value: $(params.app-folder)
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          cd /working
+          if git log --format= -n 1 --name-only | grep -qw $APP_FOLDER; then
+            echo "Folder changed"
+            echo "Installing dependencies"
+            cd $APP_BASE/$APP_FOLDER
+            npm install
+            echo "Building the function using webpack"
+            npm run build
+            export CHANGED_FOLDER=true
+          else
+            echo "Folder not changed"
+            export CHANGED_FOLDER=false
+          fi
+            
+          printf $CHANGED_FOLDER | tee $(results.is_changed.path)
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deploy-app
+spec:
+  workspaces:
+    - name: task-workspace
+      mountPath: /working
+  params:
+    - name: target-region
+    - name: namespace
+    - name: package-name
+    - name: function-name
+    - name: space
+    - name: organization
+    - name: app-base
+    - name: app-folder
+    - name: endpoint
+    - name: method
+  steps:
+    - name: execute-script
+      image: ibmcom/pipeline-base-image:2.9
+      envFrom:
+        - configMapRef:
+            name: environment-properties
+        - secretRef:
+            name: secure-properties
+      env:
+      - name: REGION
+        value: $(params.target-region)
+      - name: NAMESPACE
+        value: $(params.namespace)
+      - name: PACKAGE_NAME
+        value: $(params.package-name)
+      - name: FUNCTION_NAME
+        value: $(params.function-name)
+      - name: ENDPOINT
+        value: $(params.endpoint)
+      - name: METHOD
+        value: $(params.method)
+      - name: ORG
+        value: $(params.organization)
+      - name: SPACE
+        value: $(params.space)
+      - name: APP_BASE
+        value: $(params.app-base)
+      - name: APP_FOLDER
+        value: $(params.app-folder)
+      - name: PIPELINE_APIKEY
+        valueFrom:
+          secretKeyRef:
+            name: secure-properties
+            key: apikey
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          cd /working
+          echo "Deploying to IBM Functions"
+          ibmcloud login -a cloud.ibm.com -r $REGION -o $ORG -s $SPACE --apikey $PIPELINE_APIKEY
+          source ./scripts/deploy-function.sh
